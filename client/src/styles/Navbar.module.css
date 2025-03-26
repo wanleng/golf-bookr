@@ -21,24 +21,41 @@
 
 .navLinks {
     display: flex;
+    gap: 2rem;
+    align-items: center;
     list-style: none;
     margin: 0;
     padding: 0;
 }
 
-.navLinks li {
-    margin-left: 20px;
-}
-
-.navLinks a {
-    color: white;
+.navLink {
+    position: relative;
     text-decoration: none;
-    font-size: 16px;
-    transition: color 0.3s;
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    transition: all 0.3s ease;
 }
 
-.navLinks a:hover {
-    color: #007BFF;
+.navLink:hover {
+    color: #0ef92e;
+}
+
+.navLink::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 2px;
+    bottom: 0;
+    left: 50%;
+    background-color: #185f22;
+    transition: all 0.3s ease;
+}
+
+.navLink:hover::after {
+    width: 100%;
+    left: 0;
 }
 
 @media (max-width: 768px) {
@@ -59,13 +76,13 @@
 }
 
 .themeToggle {
-    background: transparent;
+    background: none;
     border: none;
-    color: var(--text-color);
-    padding: 8px;
     cursor: pointer;
+    padding: 0.5rem;
     display: flex;
     align-items: center;
+    justify-content: center;
 }
 
 .themeToggle:hover {
@@ -73,7 +90,7 @@
 }
 
 .adminLink {
-    color: #ffd700 !important; /* Gold color for admin link */
+    color: #805ad5;
     font-weight: bold;
     display: flex;
     align-items: center;
@@ -81,5 +98,50 @@
 }
 
 .adminLink:hover {
-    color: #ffed4a !important;
+    color: #6b46c1;
 }
+
+.adminLink::after {
+    background-color: #6b46c1;
+}
+
+.logoutBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #e53e3e;
+}
+
+.logoutBtn:hover {
+    color: #c53030;
+}
+
+.logoutBtn::after {
+    background-color: #c53030;
+}
+
+.adminNav {
+    background-color: #1a1a1a;
+    border-bottom: 2px solid #333;
+}
+
+.adminLogo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #4ade80;
+    font-weight: bold;
+}
+
+.adminLink {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #4ade80 !important;
+}
+
+.adminLink:hover {
+    color: #86efac !important;
+}
+
+

@@ -7,6 +7,22 @@ import {
 import styles from '../styles/Booking.module.css';
 import api from '../services/api';
 
+const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+    });
+};
+
+const formatTime = (timeString) => {
+    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+};
+
 const Booking = () => {
     const navigate = useNavigate();
     const [courses, setCourses] = useState([]);
@@ -250,8 +266,7 @@ const Booking = () => {
                             {todaysTeeTimes.map((time) => (
                                 <div key={time.id} className={styles.teeTimeCard}>
                                     <Typography variant="h6">{time.course_name}</Typography>
-                                    <Typography>Time: {time.time}</Typography>
-                                    <Typography>{time.date} - {time.time}</Typography>
+                                    <Typography>{formatTime(time.time)}</Typography>
                                     <Button
                                         variant="contained"
                                         onClick={() => {
@@ -277,10 +292,12 @@ const Booking = () => {
             {teeTimes.length > 0 && (
                 <div className={styles.teeTimesList}>
                     {teeTimes.map((time) => (
-                        <div key={time.id} className={`${styles.teeTimeCard} ${!time.available ? styles.booked : ''}`}>
+                        <div key={time.id} className={styles.teeTimeCard}>
                             <div>
                                 <Typography variant="h6">{time.course_name}</Typography>
-                                <Typography>{time.date} - {time.time}</Typography>
+                                <Typography>
+                                    {formatDate(time.date)} at {formatTime(time.time)}
+                                </Typography>
                             </div>
                             <Button
                                 variant="contained"
@@ -288,9 +305,6 @@ const Booking = () => {
                             >
                                 Select
                             </Button>
-                            <small className="text-muted d-block">
-                                Status: {time.available ? 'Available' : 'Just Booked'}
-                            </small>
                         </div>
                     ))}
                 </div>
@@ -299,7 +313,9 @@ const Booking = () => {
             {selectedTime && !bookingConfirmed && (
                 <Box className={styles.confirmationDetails}>
                     <Typography variant="h6">Confirm Booking</Typography>
-                    <Typography>Selected Time: {selectedTime.time}</Typography>
+                    <Typography>
+                        {formatDate(selectedTime.date)} at {formatTime(selectedTime.time)}
+                    </Typography>
                     <TextField
                         type="number"
                         label="Number of Players"

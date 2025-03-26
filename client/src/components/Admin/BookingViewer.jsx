@@ -59,6 +59,24 @@ const BookingViewer = () => {
         );
     };
 
+    const formatDate = (dateString) => {
+        const options = { 
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        };
+        return new Date(dateString).toLocaleDateString('en-US', options);
+    };
+
+    const formatTime = (timeString) => {
+        return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    };
+
     const filteredBookings = bookings.filter(booking => {
         if (filter.date && booking.date !== filter.date) return false;
         if (filter.course && booking.course_name !== filter.course) return false;
@@ -118,8 +136,8 @@ const BookingViewer = () => {
                             <td>{booking.id}</td>
                             <td>{booking.user_name}</td>
                             <td>{booking.course_name}</td>
-                            <td>{booking.date}</td>
-                            <td>{booking.time}</td>
+                            <td>{formatDate(booking.date)}</td>
+                            <td>{formatTime(booking.time)}</td>
                             <td>{booking.players}</td>
                             <td>{renderServices(booking)}</td>
                             <td>{renderBookingStatus(booking)}</td>

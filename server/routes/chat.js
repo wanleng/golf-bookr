@@ -103,135 +103,184 @@ For booking confirmation:
 - Services: [selected services]
 Would you like me to help you complete this booking?"`;
 
-// Enhance database context function
+// Update the database context query
 async function getDatabaseContext() {
     try {
-        // Get courses with detailed information
+        // Get detailed course information with stats
         const [courses] = await db.execute(`
             SELECT 
                 c.*,
                 COUNT(DISTINCT t.id) as total_tee_times,
                 COUNT(DISTINCT b.id) as total_bookings,
-                AVG(CASE WHEN b.id IS NOT NULL THEN 1 ELSE 0 END) as booking_rate,
-                GROUP_CONCAT(DISTINCT t.time) as available_times
+                COUNT(DISTINCT CASE WHEN t.available = 1 THEN t.id END) as available_slots,
+                (
+                    SELECT COUNT(*)
+                    FROM bookings b2 
+                    JOIN tee_times t2 ON b2.tee_time_id = t2.id 
+                    WHERE t2.course_id = c.id 
+                    AND b2.booking_status = 'completed'
+                ) as completed_rounds,
+                (
+                    SELECT GROUP_CONCAT(DISTINCT DATE_FORMAT(t3.time, '%H:00'))
+                    FROM tee_times t3
+                    JOIN bookings b3 ON t3.id = b3.tee_time_id
+                    WHERE t3.course_id = c.id
+                    AND b3.booking_status = 'confirmed'
+                    GROUP BY t3.course_id
+                ) as popular_hours
             FROM courses c
-            LEFT JOIN tee_times t ON c.id = t.course_id AND t.available = 1
+            LEFT JOIN tee_times t ON c.id = t.course_id
             LEFT JOIN bookings b ON t.id = b.tee_time_id
             GROUP BY c.id
         `);
 
-        // Get peak hours information
-        const [peakHours] = await db.execute(`
+        // Get today's availability
+        const [todayStats] = await db.execute(`
             SELECT 
-                CASE 
-                    WHEN HOUR(time) BETWEEN 6 AND 11 THEN 'Morning'
-                    WHEN HOUR(time) BETWEEN 12 AND 16 THEN 'Afternoon'
-                    ELSE 'Evening'
-                END as time_slot,
-                COUNT(*) as booking_count
-            FROM tee_times t
-            JOIN bookings b ON t.id = b.tee_time_id
-            WHERE DATE(b.booking_date) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-            GROUP BY time_slot
+                c.name,
+                COUNT(CASE WHEN t.available = 1 THEN 1 END) as available_slots,
+                MIN(t.time) as earliest_time,
+                MAX(t.time) as latest_time
+            FROM courses c
+            JOIN tee_times t ON c.id = t.course_id
+            WHERE t.date = CURDATE()
+            GROUP BY c.id
         `);
 
-        // Format course information for AI context
+        // Add tomorrow's availability
+        const [tomorrowStats] = await db.execute(`
+            SELECT 
+                c.name,
+                COUNT(CASE WHEN t.available = 1 THEN 1 END) as available_slots,
+                MIN(t.time) as earliest_time,
+                MAX(t.time) as latest_time,
+                GROUP_CONCAT(
+                    CASE WHEN t.available = 1 
+                    THEN TIME_FORMAT(t.time, '%h:%i %p')
+                    END
+                ) as available_times
+            FROM courses c
+            JOIN tee_times t ON c.id = t.course_id
+            WHERE t.date = DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+            GROUP BY c.id
+        `);
+
+        // Format course information
         const courseInfo = courses.map(course => ({
             name: course.name,
             description: course.description,
-            difficulty: course.difficulty_level,
             holes: course.holes,
             location: course.location,
-            facilities: course.facilities,
-            services: formatServices(course),
-            popularTimes: course.available_times?.split(',') || [],
-            bookingRate: Math.round(course.booking_rate * 100)
+            difficulty: course.difficulty_level,
+            facilities: parseFacilities(course.facilities),
+            services: {
+                caddie: course.caddie_required ? 'Required' : 'Optional',
+                golfCart: course.golf_cart_available ? 'Available' : 'Not available',
+                clubRental: course.club_rental_available ? 'Available' : 'Not available'
+            },
+            stats: {
+                availableSlots: course.available_slots,
+                completedRounds: course.completed_rounds,
+                popularHours: course.popular_hours?.split(',') || []
+            }
         }));
 
-        // Create dynamic context
+        // Create enhanced dynamic context
         const dynamicContext = `
-AVAILABLE COURSES:
+► CURRENT GOLF COURSE STATUS:
 ${courseInfo.map(course => `
-- ${course.name}
-  * Difficulty: ${course.difficulty}
-  * Holes: ${course.holes}
-  * Location: ${course.location}
-  * Booking Rate: ${course.bookingRate}%
-  * Services: ${course.services}
-  * Facilities: ${course.facilities}
-`).join('\n')}
+⛳ ${course.name}
+• Location: ${course.location}
+• Course Type: ${course.holes}-hole course
+• Difficulty Level: ${course.difficulty}
 
-PEAK HOURS INFORMATION:
-${peakHours.map(slot => `- ${slot.time_slot}: ${slot.booking_count} bookings in last 7 days`).join('\n')}
+Available Tee Times:
+• Today: ${todayStats.find(s => s.name === course.name)?.available_slots || 0} slots
+• Tomorrow: ${tomorrowStats.find(s => s.name === course.name)?.available_slots || 0} slots
+
+Tomorrow's Available Times:
+${tomorrowStats.find(s => s.name === course.name)?.available_times?.split(',').join(', ') || 'No times available'}
+
+Course Features:
+${course.facilities.map(f => `• ${f}`).join('\n')}
+`).join('\n─────────────────────────\n')}
+
+► BOOKING INFORMATION:
+• Players per booking: 1-4 players
+• Booking statuses: Confirmed, Cancelled, Completed
+• Required information: Number of players, preferred time, service requests
+• Optional services: Caddie service, golf cart, equipment rental
+
+► SPECIAL SERVICES:
+• Equipment rental available (clubs, shoes, etc.)
+• Golf cart rental options
+• Professional caddie services
+• Special requests accommodation
+
+► BOOKING GUIDELINES:
+1. Select course based on:
+   • Skill level (beginner/intermediate/advanced)
+   • Number of holes (9 or 18)
+   • Required services
+   • Location preference
+
+2. Consider when booking:
+   • Available tee times
+   • Group size (1-4 players)
+   • Service requirements
+   • Special requests
 `;
 
-        return {
-            courses: courseInfo,
-            peakHours,
-            dynamicContext
-        };
+        return { courses: courseInfo, dynamicContext };
     } catch (error) {
         console.error('Error getting database context:', error);
         throw error;
     }
 }
 
-function formatServices(course) {
-    const services = [];
-    if (course.caddie_required) services.push('Caddie Required');
-    if (course.golf_cart_available) services.push('Golf Cart Available');
-    if (course.club_rental_available) services.push('Club Rental Available');
-    return services.join(', ');
+// Helper function to parse facilities
+function parseFacilities(facilitiesStr) {
+    if (!facilitiesStr) return ['Basic facilities available'];
+    return facilitiesStr.split(',').map(f => f.trim());
 }
 
-
-
-// Update initializeChat function
+// Update initializeChat function to use GOLF_CONTEXT
 async function initializeChat(userId) {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const chat = model.startChat({
-        history: [],
-        generationConfig: {
-            maxOutputTokens: 1000,
-            temperature: 0.6,
-            topK: 40,
-            topP: 0.95,
-        },
-    });
+    try {
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            generationConfig: {
+                maxOutputTokens: 500,
+                temperature: 0.7,
+            },
+        });
 
-    // Get current database context
-    const { dynamicContext } = await getDatabaseContext();
-    
-    // Combine static and dynamic context
-    const fullContext = `${GOLF_CONTEXT}\n\nCURRENT SYSTEM STATUS:\n${dynamicContext}`;
-    
-    // Initialize AI with combined context
-    await chat.sendMessage(`
-You are CawFee, a golf booking assistant. Here is your current knowledge base including real-time course information:
+        const chat = model.startChat();
+        const { dynamicContext } = await getDatabaseContext();
+        
+        await chat.sendMessage(`
+${GOLF_CONTEXT}
 
-${fullContext}
+DATABASE CONTEXT:
+${dynamicContext}
 
-Important Instructions:
-1. Always provide recommendations based on the current course data
-2. Include specific course details when making suggestions
-3. Mention current availability and peak hours when discussing timing
-4. Use the actual facilities and services listed for each course
+IMPORTANT: Always use the structured format with 🔹 emojis and sections.
+`);
 
-Respond with "Initialized with current course data" if you understand.
-    `);
-
-    conversations.set(userId, {
-        chat,
-        lastUpdate: Date.now()
-    });
-    
-    return chat;
+        conversations.set(userId, {
+            chat,
+            lastUpdate: Date.now()
+        });
+        
+        return chat;
+    } catch (error) {
+        console.error('Chat initialization error:', error);
+        throw new Error('Failed to initialize chat service');
+    }
 }
 
 // Modify the chat route
 router.post('/', auth, async (req, res) => {
-    console.log('Received chat request:', req.body);
-
     try {
         const { message } = req.body;
         if (!message?.trim()) {
@@ -241,44 +290,70 @@ router.post('/', auth, async (req, res) => {
             });
         }
 
-        // Get or create chat instance for user
         let chat;
-        if (!conversations.has(req.user.id) || 
-            Date.now() - conversations.get(req.user.id).lastUpdate > 1800000) { // 30 minutes expiry
-            chat = await initializeChat(req.user.id);
-        } else {
-            chat = conversations.get(req.user.id).chat;
-            
-            // Refresh database context periodically
-            const databaseContext = await getDatabaseContext();
-            await chat.sendMessage(`
-Here is the latest database information. Use this for your next response:
-
-${databaseContext}
-
-Respond with the user's message: ${message}
-            `);
+        // Get or initialize chat with retry logic
+        try {
+            if (!conversations.has(req.user.id) || 
+                Date.now() - conversations.get(req.user.id).lastUpdate > 1800000) {
+                chat = await initializeChat(req.user.id);
+            } else {
+                chat = conversations.get(req.user.id).chat;
+                
+                // Refresh context
+                const { dynamicContext } = await getDatabaseContext();
+                await chat.sendMessage(`
+Latest database context:
+${dynamicContext}
+                `);
+            }
+        } catch (error) {
+            throw new Error('Chat service initialization failed');
         }
 
         // Update last activity
         conversations.get(req.user.id).lastUpdate = Date.now();
 
-        // Process user message
-        const result = await chat.sendMessage(message);
-        const response = await result.response;
-        const text = response.text();
-        
-        console.log('AI response:', text);
+        // Process message with retry logic
+        let response;
+        let attempts = 0;
+        while (attempts < 3) {
+            try {
+                const result = await chat.sendMessage(`
+Remember to:
+- Give direct, natural responses
+- Include specific available times and course details
+- Keep responses under 3 sentences
+- End with one engaging question
+- Don't repeat the user's question
+- Don't use stars, emojis, or special formatting
+
+User message: "${req.body.message}"
+
+Use current database information for accurate details.
+`);
+                response = await result.response;
+                break;
+            } catch (error) {
+                attempts++;
+                if (attempts === 3) throw error;
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+            }
+        }
 
         res.json({ 
             success: true, 
-            message: text 
+            message: response.text()
         });
+
     } catch (error) {
         console.error('Chat error:', error);
+        // Clear conversation if fatal error
+        if (conversations.has(req.user.id)) {
+            conversations.delete(req.user.id);
+        }
         res.status(500).json({ 
             success: false, 
-            message: 'AI service error: ' + (error.message || 'Unknown error')
+            message: 'Chat service temporarily unavailable. Please try again.'
         });
     }
 });
@@ -293,9 +368,5 @@ setInterval(() => {
     }
 }, 300000); // Clean up every 5 minutes
 
-// Add a test route to verify the router is mounted
-router.get('/test', (req, res) => {
-    res.json({ success: true, message: 'Chat router is working' });
-});
 
 export default router;

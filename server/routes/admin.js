@@ -200,6 +200,14 @@ router.post('/courses', auth, async (req, res) => {
             club_rental_available 
         } = req.body;
 
+        // Validate difficulty level
+        if (!['beginner', 'intermediate', 'advanced'].includes(difficulty_level)) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Invalid difficulty level' 
+            });
+        }
+
         const [result] = await db.execute(
             `INSERT INTO courses (
                 name, description, holes, location, facilities,
@@ -207,10 +215,15 @@ router.post('/courses', auth, async (req, res) => {
                 club_rental_available
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [name, description, holes, location, facilities,
-             difficulty_level, caddie_required, golf_cart_available,
-             club_rental_available]
+             difficulty_level, Boolean(caddie_required), 
+             Boolean(golf_cart_available), Boolean(club_rental_available)]
         );
-        res.json({ success: true, courseId: result.insertId });
+
+        res.json({ 
+            success: true, 
+            courseId: result.insertId,
+            message: 'Course created successfully'
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -228,8 +241,18 @@ router.get('/courses', auth, async (req, res) => {
 
 router.get('/courses/:id', auth, async (req, res) => {
     try {
-        const [courses] = await db.execute('SELECT * FROM courses WHERE id = ?', [req.params.id]);
-        if (courses.length === 0) return res.status(404).json({ success: false, message: 'Course not found' });
+        // Add created_at and updated_at to the response
+        const [courses] = await db.execute(`
+            SELECT id, name, description, holes, location, facilities,
+                   difficulty_level, caddie_required, golf_cart_available,
+                   club_rental_available, created_at, updated_at 
+            FROM courses 
+            WHERE id = ?`, 
+            [req.params.id]
+        );
+        if (courses.length === 0) {
+            return res.status(404).json({ success: false, message: 'Course not found' });
+        }
         res.json({ success: true, course: courses[0] });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

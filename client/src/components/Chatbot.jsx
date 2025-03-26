@@ -5,6 +5,24 @@ import SendIcon from '@mui/icons-material/Send';
 import styles from '../styles/Chatbot.module.css';
 import api from '../services/api';
 
+const formatAIMessage = (message) => {
+    return message.split('\n').map((line, i) => {
+        if (!line.trim()) return null; // Skip empty lines
+        
+        if (line.startsWith('►')) {
+            return <h3 key={i} className={styles.sectionHeader}>{line}</h3>;
+        } else if (line.startsWith('•')) {
+            return <span key={i} className={styles.bulletPoint}>{line}</span>;
+        } else if (line.startsWith('⛳')) {
+            return <h4 key={i} className={styles.courseTitle}>{line}</h4>;
+        } else if (line.startsWith('─')) {
+            return <hr key={i} className={styles.divider} />;
+        } else {
+            return <span key={i} className={styles.textLine}>{line}</span>;
+        }
+    }).filter(Boolean); // Remove null values
+};
+
 const Chatbot = () => {
     const navigate = useNavigate();
     const [messages, setMessages] = useState([]);
@@ -73,7 +91,13 @@ const Chatbot = () => {
                         key={index} 
                         className={message.isUser ? styles.userMessage : styles.aiMessage}
                     >
-                        {message.text}
+                        {message.isUser ? (
+                            message.text
+                        ) : (
+                            <div className={styles.formattedMessage}>
+                                {formatAIMessage(message.text)}
+                            </div>
+                        )}
                     </div>
                 ))}
                 {loading && (

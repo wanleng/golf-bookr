@@ -21,6 +21,27 @@ const TeeTimeManager = () => {
     });
     const [confirmDeleteAllOpen, setConfirmDeleteAllOpen] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
+    const [error, setError] = useState('');
+
+    // Add this utility function at the top of the component
+    const formatDate = (dateString) => {
+        const options = { 
+            weekday: 'short', 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+        };
+        return new Date(dateString).toLocaleDateString('en-US', options);
+    };
+
+    // Update the time format function
+    const formatTime = (timeString) => {
+        return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    };
 
     useEffect(() => {
         fetchTeeTimes();
@@ -45,35 +66,50 @@ const TeeTimeManager = () => {
         }
     };
 
+    // Add tee time validation 
+    const validateTeeTime = (data) => {
+        const errors = [];
+        
+        if (!data.courseId) errors.push('Course is required');
+        if (!data.date) errors.push('Date is required');
+        if (!data.startTime || !data.endTime) errors.push('Time range is required');
+        
+        // Validate max players
+        if (data.maxPlayers < 1 || data.maxPlayers > 4) {
+            errors.push('Max players must be between 1 and 4');
+        }
+
+        // Validate time interval
+        if (data.interval < 5 || data.interval > 60) {
+            errors.push('Time interval must be between 5 and 60 minutes');
+        }
+
+        return errors;
+    };
+
+    // Update form submission
     const handleSubmit = async (e) => {
         e.preventDefault();
-        try {
-            // Validate required fields
-            if (!formData.courseId || !formData.date || !formData.startTime || !formData.endTime) {
-                alert('Please fill in all required fields');
-                return;
-            }
+        const errors = validateTeeTime(formData);
 
+        if (errors.length > 0) {
+            setError(errors.join(', '));
+            return;
+        }
+
+        try {
             const response = await api.post('/admin/tee-times/bulk', {
-                courseId: formData.courseId,
-                date: formData.date,
-                startTime: formData.startTime,
-                endTime: formData.endTime,
-                interval: parseInt(formData.interval),
+                ...formData,
                 maxPlayers: parseInt(formData.maxPlayers),
-                specialNotes: formData.specialNotes || null
+                interval: parseInt(formData.interval)
             });
 
             if (response.data.success) {
-                setSuccessMessage(`Successfully created ${response.data.count} tee times`);
-                setShowModal(false);
+                setSuccessMessage(`Created ${response.data.count} tee times`);
                 fetchTeeTimes();
-            } else {
-                alert(response.data.message || 'Failed to create tee times');
             }
         } catch (error) {
-            console.error('Error creating tee times:', error);
-            alert(error.response?.data?.message || 'Error creating tee times');
+            setError('Failed to create tee times: ' + error.message);
         }
     };
 
@@ -107,14 +143,6 @@ const TeeTimeManager = () => {
             <div className="d-flex justify-content-between mb-4">
                 <h2>Manage Tee Times</h2>
                 <div>
-                    <Button 
-                        variant="danger" 
-                        className="me-2"
-                        onClick={() => setConfirmDeleteAllOpen(true)}
-                        disabled={teeTimes.length === 0}
-                    >
-                        Delete All Unused Times
-                    </Button>
                     <Button onClick={() => setShowModal(true)}>Create Tee Times</Button>
                 </div>
             </div>
@@ -123,6 +151,13 @@ const TeeTimeManager = () => {
                 <div className="alert bg-success alert-dismissible fade show" role="alert">
                     {successMessage}
                     <button type="button" className="btn-close" onClick={() => setSuccessMessage('')}></button>
+                </div>
+            )}
+
+            {error && (
+                <div className="alert bg-danger alert-dismissible fade show" role="alert">
+                    {error}
+                    <button type="button" className="btn-close" onClick={() => setError('')}></button>
                 </div>
             )}
 
@@ -142,10 +177,14 @@ const TeeTimeManager = () => {
                     {teeTimes.map(teeTime => (
                         <tr key={teeTime.id}>
                             <td>{teeTime.course_name}</td>
-                            <td>{teeTime.date}</td>
-                            <td>{teeTime.time}</td>
+                            <td>{formatDate(teeTime.date)}</td>
+                            <td>{formatTime(teeTime.time)}</td>
                             <td>{teeTime.max_players}</td>
-                            <td>{teeTime.available ? 'Available' : 'Booked'}</td>
+                            <td>
+                                <span className={`badge ${teeTime.available ? 'bg-success' : 'bg-danger'}`}>
+                                    {teeTime.available ? 'Available' : 'Booked'}
+                                </span>
+                            </td>
                             <td>{teeTime.special_notes || '-'}</td>
                             <td>
                                 <Button 
@@ -161,24 +200,6 @@ const TeeTimeManager = () => {
                     ))}
                 </tbody>
             </Table>
-
-            <Modal show={confirmDeleteAllOpen} onHide={() => setConfirmDeleteAllOpen(false)}>
-                <Modal.Header closeButton>
-                    <Modal.Title>Confirm Delete All</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    Are you sure you want to delete all unused tee times? This action cannot be undone.
-                    Only tee times without bookings will be deleted.
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setConfirmDeleteAllOpen(false)}>
-                        Cancel
-                    </Button>
-                    <Button variant="danger" onClick={handleDeleteAll}>
-                        Delete All
-                    </Button>
-                </Modal.Footer>
-            </Modal>
 
             <Modal show={showModal} onHide={() => setShowModal(false)}>
                 <Modal.Header closeButton>

@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import Table from 'react-bootstrap/Table';
-import Form from 'react-bootstrap/Form';
-import Button from 'react-bootstrap/Button';
-import Modal from 'react-bootstrap/Modal';
+import { Table, Form, Button, Modal, Alert, Container } from 'react-bootstrap';
 import api from '../../services/api';
 
 const CourseManager = () => {
     const [courses, setCourses] = useState([]);
     const [showModal, setShowModal] = useState(false);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [successMessage, setSuccessMessage] = useState('');
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -21,23 +21,55 @@ const CourseManager = () => {
     });
     const [editingId, setEditingId] = useState(null);
 
-    useEffect(() => {
-        fetchCourses();
-    }, []);
-
     const fetchCourses = async () => {
+        setLoading(true);
         try {
             const response = await api.get('/admin/courses');
             setCourses(response.data.courses);
         } catch (error) {
-            console.error('Error fetching courses:', error);
+            setError('Failed to fetch courses: ' + error.message);
+        } finally {
+            setLoading(false);
         }
+    };
+
+    useEffect(() => {
+        fetchCourses();
+    }, []);
+
+    // Add validation function
+    const validateForm = (data) => {
+        const errors = {};
+        
+        if (!data.name || data.name.length > 100) {
+          errors.name = 'Name is required and must be less than 100 characters';
+        }
+        
+        if (!data.holes || ![9, 18].includes(Number(data.holes))) {
+          errors.holes = 'Must be either 9 or 18 holes';
+        }
+        
+        if (!data.difficulty_level || 
+            !['beginner', 'intermediate', 'advanced'].includes(data.difficulty_level)) {
+          errors.difficulty_level = 'Invalid difficulty level';
+        }
+      
+        return errors;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        const errors = validateForm(formData);
+        
+        if (Object.keys(errors).length > 0) {
+          setError(Object.values(errors).join(', '));
+          return;
+        }
+      
         try {
-            // Convert boolean values to integers for MySQL
+            setLoading(true);
+            
+            // Convert booleans for MySQL
             const submitData = {
                 ...formData,
                 caddie_required: formData.caddie_required ? 1 : 0,
@@ -47,17 +79,20 @@ const CourseManager = () => {
 
             if (editingId) {
                 await api.put(`/admin/courses/${editingId}`, submitData);
+                setSuccessMessage('Course updated successfully');
             } else {
                 await api.post('/admin/courses', submitData);
+                setSuccessMessage('Course created successfully');
             }
             
-            await fetchCourses(); // Refresh the courses list
+            await fetchCourses();
             setShowModal(false);
             resetForm();
             
         } catch (error) {
-            console.error('Error saving course:', error.response?.data || error);
-            alert(error.response?.data?.message || 'Error saving course');
+            setError(error.response?.data?.message || 'Error saving course');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -87,68 +122,106 @@ const CourseManager = () => {
         setEditingId(null);
     };
 
+    const renderDifficultyBadge = (difficulty) => {
+        const colors = {
+            beginner: 'success',
+            intermediate: 'warning',
+            advanced: 'danger'
+        };
+        return (
+            <span className={`badge bg-${colors[difficulty]}`}>
+                {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
+            </span>
+        );
+    };
+
     return (
-        <div className="p-4">
-            <div className="d-flex justify-content-between mb-4">
-                <h2>Manage Courses</h2>
-                <Button onClick={() => setShowModal(true)}>Add New Course</Button>
+        <Container fluid className="p-4">
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <h2>Golf Course Management</h2>
+                <Button 
+                    variant="success" 
+                    onClick={() => setShowModal(true)}
+                    className="d-flex align-items-center gap-2"
+                >
+                    <i className="bi bi-plus-circle"></i> Add New Course
+                </Button>
             </div>
 
-            <Table striped bordered hover>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Location</th>
-                        <th>Holes</th>
-                        <th>Difficulty</th>
-                        <th>Facilities</th>
-                        <th>Services</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {courses.map(course => (
-                        <tr key={course.id}>
-                            <td>{course.name}</td>
-                            <td>{course.location}</td>
-                            <td>{course.holes}</td>
-                            <td>{course.difficulty_level}</td>
-                            <td>{course.facilities}</td>
-                            <td>
-                                {course.caddie_required && '🏌️ Caddie '}
-                                {course.golf_cart_available && '🚗 Cart '}
-                                {course.club_rental_available && '⛳ Rentals'}
-                            </td>
-                            <td>
-                                <Button 
-                                    variant="info" 
-                                    size="sm" 
-                                    className="me-2"
-                                    onClick={() => {
-                                        setFormData(course);
-                                        setEditingId(course.id);
-                                        setShowModal(true);
-                                    }}
-                                >
-                                    Edit
-                                </Button>
-                                <Button 
-                                    variant="danger" 
-                                    size="sm"
-                                    onClick={() => handleDelete(course.id)}
-                                >
-                                    Delete
-                                </Button>
-                            </td>
+            {error && <Alert variant="danger" className="mb-4">{error}</Alert>}
+            {successMessage && <Alert variant="success" className="mb-4">{successMessage}</Alert>}
+
+            {loading ? (
+                <div className="text-center p-5">
+                    <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            ) : (
+                <Table responsive striped bordered hover>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Location</th>
+                            <th>Holes</th>
+                            <th>Difficulty</th>
+                            <th>Services</th>
+                            <th>Created</th>
+                            <th>Updated</th>
+                            <th>Actions</th>
                         </tr>
-                    ))}
-                </tbody>
-            </Table>
+                    </thead>
+                    <tbody>
+                        {courses.map(course => (
+                            <tr key={course.id}>
+                                <td>{course.name}</td>
+                                <td>{course.location}</td>
+                                <td>{course.holes}</td>
+                                <td>{renderDifficultyBadge(course.difficulty_level)}</td>
+                                <td>
+                                    <div className="d-flex gap-2">
+                                        {course.caddie_required && 
+                                            <span className="badge bg-info">🏌️ Caddie</span>}
+                                        {course.golf_cart_available && 
+                                            <span className="badge bg-success">🚗 Cart</span>}
+                                        {course.club_rental_available && 
+                                            <span className="badge bg-primary">⛳ Rentals</span>}
+                                    </div>
+                                </td>
+                                <td>{new Date(course.created_at).toLocaleString()}</td>
+                                <td>{new Date(course.updated_at).toLocaleString()}</td>
+                                <td>
+                                    <div className="d-flex gap-2">
+                                        <Button 
+                                            variant="outline-primary" 
+                                            size="sm"
+                                            onClick={() => {
+                                                setFormData(course);
+                                                setEditingId(course.id);
+                                                setShowModal(true);
+                                            }}
+                                        >
+                                            Edit
+                                        </Button>
+                                        <Button 
+                                            variant="outline-danger" 
+                                            size="sm"
+                                            onClick={() => handleDelete(course.id)}
+                                        >
+                                            Delete
+                                        </Button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </Table>
+            )}
 
             <Modal show={showModal} onHide={() => {
                 setShowModal(false);
                 resetForm();
-            }}>
+            }} size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>{editingId ? 'Edit Course' : 'Add New Course'}</Modal.Title>
                 </Modal.Header>
@@ -217,39 +290,57 @@ const CourseManager = () => {
                             />
                         </Form.Group>
 
-                        <Form.Group className="mb-3">
+                        <div className="mb-3">
                             <Form.Check
-                                type="checkbox"
+                                type="switch"
+                                id="caddie-switch"
                                 label="Caddie Required"
                                 checked={formData.caddie_required}
-                                onChange={(e) => setFormData({...formData, caddie_required: e.target.checked})}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    caddie_required: e.target.checked
+                                })}
                             />
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
                             <Form.Check
-                                type="checkbox"
+                                type="switch"
+                                id="cart-switch"
                                 label="Golf Cart Available"
                                 checked={formData.golf_cart_available}
-                                onChange={(e) => setFormData({...formData, golf_cart_available: e.target.checked})}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    golf_cart_available: e.target.checked
+                                })}
                             />
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
                             <Form.Check
-                                type="checkbox"
+                                type="switch"
+                                id="rental-switch"
                                 label="Club Rental Available"
                                 checked={formData.club_rental_available}
-                                onChange={(e) => setFormData({...formData, club_rental_available: e.target.checked})}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    club_rental_available: e.target.checked
+                                })}
                             />
-                        </Form.Group>
+                        </div>
 
-                        <Button type="submit">{editingId ? 'Update' : 'Create'}</Button>
+                        <Button type="submit" disabled={loading}>
+                            {loading ? 'Saving...' : (editingId ? 'Update Course' : 'Create Course')}
+                        </Button>
                     </Form>
                 </Modal.Body>
             </Modal>
-        </div>
+        </Container>
     );
+};
+
+// Helper function to determine badge color based on difficulty
+const getDifficultyColor = (difficulty) => {
+    switch (difficulty) {
+        case 'beginner': return 'success';
+        case 'intermediate': return 'warning';
+        case 'advanced': return 'danger';
+        default: return 'secondary';
+    }
 };
 
 export default CourseManager;

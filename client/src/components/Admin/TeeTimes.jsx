@@ -4,37 +4,42 @@ import {
     DialogContentText, DialogTitle, Alert,
     TextField, Select, MenuItem, FormControl, InputLabel
 } from '@mui/material';
+import { format } from 'date-fns';
 import api from '../../services/api';
 
 const TeeTimes = () => {
+    // Combined state management
     const [teeTimes, setTeeTimes] = useState([]);
+    const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
-    const [selectedTeeTime, setSelectedTeeTime] = useState(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+    const [selectedTeeTime, setSelectedTeeTime] = useState(null);
     const [formData, setFormData] = useState({
         courseId: '',
-        date: '',
+        date: format(new Date(), 'yyyy-MM-dd'),
         startTime: '07:00',
         endTime: '17:00',
         interval: 10,
         maxPlayers: 4,
-        specialNotes: '',
+        specialNotes: ''
     });
-    const [courses, setCourses] = useState([]);
+
+    // Fetch data on component mount
+    useEffect(() => {
+        fetchTeeTimes();
+        fetchCourses();
+    }, []);
 
     const fetchTeeTimes = async () => {
         try {
             setLoading(true);
             const response = await api.get('/admin/tee-times');
-            if (response.data.success) {
-                setTeeTimes(response.data.teeTimes);
-            }
-        } catch (error) {
-            setError('Failed to load tee times');
-            console.error(error);
+            setTeeTimes(response.data.teeTimes);
+        } catch (err) {
+            setError('Failed to load tee times: ' + err.message);
         } finally {
             setLoading(false);
         }
@@ -43,34 +48,9 @@ const TeeTimes = () => {
     const fetchCourses = async () => {
         try {
             const response = await api.get('/admin/courses');
-            if (response.data.success) {
-                setCourses(response.data.courses);
-            }
-        } catch (error) {
-            setError('Failed to load courses');
-            console.error(error);
-        }
-    };
-
-    useEffect(() => {
-        fetchTeeTimes();
-        fetchCourses();
-    }, []);
-
-    const handleDeleteAll = async () => {
-        try {
-            setLoading(true);
-            const response = await api.delete('/admin/tee-times/all');
-            if (response.data.success) {
-                setSuccessMessage(`Successfully deleted ${response.data.deletedCount} tee times`);
-                fetchTeeTimes(); // Refresh the list
-            }
-        } catch (error) {
-            setError('Failed to delete tee times');
-            console.error(error);
-        } finally {
-            setLoading(false);
-            setConfirmDialogOpen(false);
+            setCourses(response.data.courses);
+        } catch (err) {
+            setError('Failed to load courses: ' + err.message);
         }
     };
 
@@ -80,58 +60,89 @@ const TeeTimes = () => {
             setLoading(true);
             const response = await api.post('/admin/tee-times/bulk', {
                 ...formData,
-                maxPlayers: parseInt(formData.maxPlayers)
+                maxPlayers: parseInt(formData.maxPlayers),
+                interval: parseInt(formData.interval)
             });
+
             if (response.data.success) {
-                setSuccessMessage(`Successfully created ${response.data.count} tee times`);
+                setSuccessMessage(`Created ${response.data.count} tee times successfully`);
                 setShowCreateModal(false);
                 fetchTeeTimes();
             }
-        } catch (error) {
-            setError('Failed to create tee times');
-            console.error(error);
+        } catch (err) {
+            setError('Failed to create tee times: ' + err.message);
         } finally {
             setLoading(false);
         }
     };
 
+    const handleDeleteTeeTime = async (id) => {
+        try {
+            setLoading(true);
+            await api.delete(`/admin/tee-times/${id}`);
+            setSuccessMessage('Tee time deleted successfully');
+            fetchTeeTimes();
+        } catch (err) {
+            setError('Failed to delete tee time: ' + err.message);
+        } finally {
+            setLoading(false);
+            setConfirmDeleteOpen(false);
+            setSelectedTeeTime(null);
+        }
+    };
+
+    const handleDeleteAllUnused = async () => {
+        try {
+            setLoading(true);
+            const response = await api.delete('/admin/tee-times/all');
+            setSuccessMessage(`Deleted ${response.data.deletedCount} unused tee times`);
+            fetchTeeTimes();
+        } catch (err) {
+            setError('Failed to delete unused tee times: ' + err.message);
+        } finally {
+            setLoading(false);
+            setConfirmDeleteOpen(false);
+        }
+    };
+
     return (
-        <div className="container mt-4">
+        <div className="container-fluid p-4">
+            {/* Header Section */}
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <h2>Manage Tee Times</h2>
-                <div>
+                <h2>Tee Time Management</h2>
+                <div className="d-flex gap-2">
                     <Button 
                         variant="contained" 
                         color="primary"
                         onClick={() => setShowCreateModal(true)}
-                        sx={{ mr: 2 }}
                     >
                         Create Tee Times
                     </Button>
                     <Button 
                         variant="contained" 
                         color="error"
-                        onClick={() => setConfirmDialogOpen(true)}
+                        onClick={() => setConfirmDeleteOpen(true)}
                         disabled={loading || teeTimes.length === 0}
                     >
-                        Delete All Unused Tee Times
+                        Delete Unused Times
                     </Button>
                 </div>
             </div>
 
+            {/* Alerts */}
             {error && (
-                <Alert severity="error" className="mb-3" onClose={() => setError(null)}>
+                <Alert severity="error" onClose={() => setError(null)} className="mb-3">
                     {error}
                 </Alert>
             )}
-
             {successMessage && (
-                <Alert severity="success" className="mb-3" onClose={() => setSuccessMessage('')}>
+                <Alert severity="success" onClose={() => setSuccessMessage('')} className="mb-3">
                     {successMessage}
                 </Alert>
             )}
 
-            <div className="card bg-transparent">
+            {/* Tee Times Table */}
+            <div className="card bg-white shadow-sm">
                 <div className="card-body">
                     <div className="table-responsive">
                         <table className="table table-hover">
@@ -140,9 +151,9 @@ const TeeTimes = () => {
                                     <th>Course</th>
                                     <th>Date</th>
                                     <th>Time</th>
-                                    <th>Max Players</th>
+                                    <th>Players</th>
                                     <th>Status</th>
-                                    <th>Special Notes</th>
+                                    <th>Notes</th>
                                     <th>Created</th>
                                     <th>Updated</th>
                                     <th>Actions</th>
@@ -150,12 +161,16 @@ const TeeTimes = () => {
                             </thead>
                             <tbody>
                                 {loading ? (
-                                    <tr><td colSpan="9" className="text-center">Loading...</td></tr>
+                                    <tr>
+                                        <td colSpan="9" className="text-center">
+                                            <div className="spinner-border text-primary" />
+                                        </td>
+                                    </tr>
                                 ) : teeTimes.length > 0 ? (
                                     teeTimes.map((teeTime) => (
                                         <tr key={teeTime.id}>
                                             <td>{teeTime.course_name}</td>
-                                            <td>{new Date(teeTime.date).toLocaleDateString()}</td>
+                                            <td>{format(new Date(teeTime.date), 'MMM dd, yyyy')}</td>
                                             <td>{teeTime.time}</td>
                                             <td>{teeTime.max_players}</td>
                                             <td>
@@ -173,8 +188,8 @@ const TeeTimes = () => {
                                                     <span className="text-muted">-</span>
                                                 )}
                                             </td>
-                                            <td>{new Date(teeTime.created_at).toLocaleString()}</td>
-                                            <td>{new Date(teeTime.updated_at).toLocaleString()}</td>
+                                            <td>{format(new Date(teeTime.created_at), 'MMM dd, HH:mm')}</td>
+                                            <td>{format(new Date(teeTime.updated_at), 'MMM dd, HH:mm')}</td>
                                             <td>
                                                 <Button
                                                     size="small"
@@ -182,7 +197,7 @@ const TeeTimes = () => {
                                                     color="error"
                                                     onClick={() => {
                                                         setSelectedTeeTime(teeTime);
-                                                        setConfirmDialogOpen(true);
+                                                        setConfirmDeleteOpen(true);
                                                     }}
                                                     disabled={!teeTime.available}
                                                 >
@@ -192,7 +207,9 @@ const TeeTimes = () => {
                                         </tr>
                                     ))
                                 ) : (
-                                    <tr><td colSpan="9" className="text-center">No tee times found</td></tr>
+                                    <tr>
+                                        <td colSpan="9" className="text-center">No tee times found</td>
+                                    </tr>
                                 )}
                             </tbody>
                         </table>
@@ -200,6 +217,7 @@ const TeeTimes = () => {
                 </div>
             </div>
 
+            {/* Create Modal */}
             <Dialog open={showCreateModal} onClose={() => setShowCreateModal(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>Create Tee Times</DialogTitle>
                 <DialogContent>
@@ -291,18 +309,34 @@ const TeeTimes = () => {
                 </DialogActions>
             </Dialog>
 
-            <Dialog open={confirmDialogOpen} onClose={() => setConfirmDialogOpen(false)}>
-                <DialogTitle>Confirm Delete All</DialogTitle>
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={confirmDeleteOpen} onClose={() => setConfirmDeleteOpen(false)}>
+                <DialogTitle>
+                    {selectedTeeTime ? 'Delete Tee Time' : 'Delete All Unused Tee Times'}
+                </DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        Are you sure you want to delete all unused tee times? This action cannot be undone.
-                        Only tee times without bookings will be deleted.
+                        {selectedTeeTime 
+                            ? 'Are you sure you want to delete this tee time?'
+                            : 'Are you sure you want to delete all unused tee times? This action cannot be undone.'}
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setConfirmDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleDeleteAll} color="error" variant="contained">
-                        Delete All
+                    <Button onClick={() => {
+                        setConfirmDeleteOpen(false);
+                        setSelectedTeeTime(null);
+                    }}>
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={() => selectedTeeTime 
+                            ? handleDeleteTeeTime(selectedTeeTime.id)
+                            : handleDeleteAllUnused()
+                        }
+                        color="error"
+                        variant="contained"
+                    >
+                        Delete
                     </Button>
                 </DialogActions>
             </Dialog>

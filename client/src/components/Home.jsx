@@ -15,7 +15,7 @@ const Home = () => {
     };
 
     return (
-        <>
+        <div className={styles.container}>
             <section className={styles.features}>
                 <Typography variant="h2" component="h1" gutterBottom>
                     Welcome to Golf Bookr with CawFee AI.
@@ -56,13 +56,13 @@ const Home = () => {
                     {/* Alpine Golf Club Card */}
                     <div className={styles.courseCard}>
                         <div className={styles.courseImage}>
-                            <img 
+                            <a href='https://www.alpinegolfclub.com/'> <img 
                                 src="/images/alpine.jpg" 
                                 alt="Alpine Golf & Sports Club"
                                 onError={(e) => {
                                     e.target.src = 'https://via.placeholder.com/800x400?text=Alpine+Golf+Club';
                                 }}
-                            />
+                            /></a>
                         </div>
                         <div className={styles.courseInfo}>
                             <Typography variant="h4">Alpine Golf & Sports Club</Typography>
@@ -98,13 +98,13 @@ const Home = () => {
                     {/* Thai Country Club Card */}
                     <div className={styles.courseCard}>
                         <div className={styles.courseImage}>
-                            <img 
+                            <a href='https://www.thaicountryclub.com/'>  <img 
                                 src="/images/thai-country-club.jpg" 
                                 alt="Thai Country Club"
                                 onError={(e) => {
                                     e.target.src = 'https://via.placeholder.com/800x400?text=Thai+Country+Club';
                                 }}
-                            />
+                            /></a>
                         </div>
                         <div className={styles.courseInfo}>
                             <Typography variant="h4">Thai Country Club</Typography>
@@ -140,13 +140,13 @@ const Home = () => {
                     {/* Nikanti Golf Club Card */}
                     <div className={styles.courseCard}>
                         <div className={styles.courseImage}>
-                            <img 
+                            <a href='https://www.nikantigolfclub.com/' > <img 
                                 src="/images/nikanti-golf.jpg" 
                                 alt="Nikanti Golf Club"
                                 onError={(e) => {
                                     e.target.src = 'https://via.placeholder.com/800x400?text=Nikanti+Golf+Club';
                                 }}
-                            />
+                            /></a>
                         </div>
                         <div className={styles.courseInfo}>
                             <Typography variant="h4">Nikanti Golf Club</Typography>
@@ -210,7 +210,74 @@ const Home = () => {
                     ))}
                 </div>
             </section>
-        </>
+            <section className={styles.partnersPromotion}>
+        <h2>PARTNERS PROMOTION</h2>
+        <div className={styles.promotions}>
+          {/* First Banner */}
+          <div
+            className={styles.banner}
+            style={{ backgroundImage: "url('path/to/golf-course1.jpg')" }}
+          >
+            <div className={styles.bannerContent}>
+              <h3>Partner Discount</h3>
+              <p>Exclusive offer for our partners: 10% off on all bookings.</p>
+ 
+              {/* Add the logos below the paragraph */}
+              <div className={styles.partnerLogos}>
+                <a href="https://www.cimso.com">
+                  <img
+                    src="/images/Cimso Logo.png"
+                    alt="Cimso Logo"
+                    className={styles.partnerLogo}
+                  />
+                </a>
+ 
+                <a href="https://www.rsu.ac.th">
+                  <img
+                    src="/images/logo2.png"
+                    alt="Partner Logo 2"
+                    className={styles.partnerLogo}
+                  />
+                </a>
+ 
+                <a href="https://www.rsuip.org/programmes/undergraduate/ict/">
+                  <img
+                    src="/images/logo4.png"
+                    alt="Partner Logo 3"
+                    className={styles.partnerLogo}
+                  />
+                </a>
+              </div>
+ 
+              <a href="http://localhost:5173/about" className={styles.btn}>
+                Learn More
+              </a>
+            </div>
+          </div>
+          {/* Second Banner */}
+          <div
+            className={styles.banner}
+            style={{ backgroundImage: "url('path/to/golf-course2.jpg')" }}
+          >
+            <div className={styles.bannerContent}>
+              <h3>Download Our App</h3>
+              <p>Get a special discount when you download our app.</p>
+              <div className={styles.logos}>
+                <a href="https://apps.apple.com">
+                  <img src="/images/Applelogo.png" alt="App Store" />
+                </a>
+                <a href="https://play.google.com">
+                  <img src="/images/Googlelogo.png" alt="Google Play" />
+                </a>
+              </div>
+              <a href="https://play.google.com" className={styles.btn}>
+                Download Now
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+        </div>
     );
 };
 
